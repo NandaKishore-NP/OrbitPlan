@@ -13,14 +13,15 @@ import {
   Trash,
   Users,
   StatusPage,
+  Signup,
 } from "./pages";
 import { setOpenSidebar } from "./redux/slices/authSlice";
 
 function Layout() {
-  const { user } = useSelector((state) => state.auth);
+  const { isAuthenticated } = useSelector((state) => state.auth);
   const location = useLocation();
 
-  return user ? (
+  return isAuthenticated ? (
     <div className='w-full h-screen flex flex-col md:flex-row'>
       <div className='w-1/5 h-screen bg-white dark:bg-[#1f1f1f] sticky top-0 hidden md:block'>
         <Sidebar />
@@ -37,7 +38,7 @@ function Layout() {
       </div>
     </div>
   ) : (
-    <Navigate to='/log-in' state={{ from: location }} replace />
+    <Navigate to='/login' state={{ from: location }} replace />
   );
 }
 
@@ -110,7 +111,8 @@ const App = () => {
             <Route path='/status' element={<StatusPage />} />
           </Route>
 
-          <Route path='/log-in' element={<Login />} />
+          <Route path='/login' element={<Login />} />
+          <Route path='/signup' element={<Signup />} />
         </Routes>
       </div>
 
