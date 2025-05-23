@@ -1,6 +1,6 @@
 import { useForm } from "react-hook-form";
 import { useDispatch, useSelector } from "react-redux";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
 import { toast } from "sonner";
 import { Button, Loading, Textbox } from "../components";
 import { useLoginMutation } from "../redux/slices/api/authApiSlice";
@@ -37,12 +37,11 @@ const Login = () => {
 
     return () => clearInterval(interval);
   }, []);
-
   const handleLogin = async (data) => {
     try {
       const res = await login(data).unwrap();
-      dispatch(setCredentials(res));
-      navigate("/");
+      dispatch(setCredentials({ ...res, isAuthenticated: true }));
+      navigate("/dashboard");
     } catch (err) {
       toast.error(err?.data?.message || err.error);
     }
@@ -253,9 +252,22 @@ const Login = () => {
                             {/* <span className="text-sm uppercase tracking-wider font-semibold">Login to OrbitPlan</span> */}
                             <FiLogIn className="w-5 h-5 group-hover:rotate-12 transition-transform" />
                           </>
-                        )}
-                      </div>
+                        )}                      </div>
                     </Button>
+                  </motion.div>
+
+                  <motion.div
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    transition={{ delay: 0.9 }}
+                    className="text-center mt-6"
+                  >
+                    <p className="text-gray-600 dark:text-gray-400">
+                      Don't have an account?{" "}
+                      <Link to="/signup" className="text-indigo-600 hover:text-indigo-500 font-medium">
+                        Sign Up
+                      </Link>
+                    </p>
                   </motion.div>
                 </form>
               </div>

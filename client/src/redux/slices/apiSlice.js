@@ -5,13 +5,7 @@ const API_URL = "http://localhost:8800/api";
 
 const baseQuery = fetchBaseQuery({
   baseUrl: API_URL,
-  prepareHeaders: (headers, { getState }) => {
-    const token = getState()?.auth?.user?.token;
-    if (token) {
-      headers.set('Authorization', `Bearer ${token}`);
-    }
-    return headers;
-  },
+  credentials: 'include',  // This will send cookies with every request
 });
 
 export const apiSlice = createApi({

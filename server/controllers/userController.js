@@ -22,15 +22,13 @@ const loginUser = asyncHandler(async (req, res) => {
     });
   }
 
-  const isMatch = await user.matchPassword(password);
-  if (user && isMatch) {
-    const token = createJWT(res, user._id);
+  const isMatch = await user.matchPassword(password);  if (user && isMatch) {
+    createJWT(res, user._id);
 
     user.password = undefined;
 
     res.status(200).json({
-      ...user.toObject(),
-      token
+      ...user.toObject()
     });
   } else {
     return res
@@ -59,9 +57,8 @@ const registerUser = asyncHandler(async (req, res) => {
     role,
     title,
   });
-
   if (user) {
-    isAdmin ? createJWT(res, user._id) : null;
+    createJWT(res, user._id);
 
     user.password = undefined;
 

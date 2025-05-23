@@ -6,8 +6,19 @@ import User from "../models/userModel.js";
 const createTask = asyncHandler(async (req, res) => {
   try {
     const { userId } = req.user;
-    const { title, team, stage, date, priority, assets, links, description } =
-      req.body;
+    if (!userId) {
+      return res.status(401).json({ status: false, message: "User not authenticated" });
+    }
+
+    const { title, team, stage, date, priority, assets, links, description } = req.body;
+    
+    // Validate required fields
+    if (!title || !team || !stage || !date || !priority) {
+      return res.status(400).json({ 
+        status: false, 
+        message: "Missing required fields" 
+      });
+    }
 
     //alert users of the task
     let text = "New task has been assigned to you";
@@ -26,11 +37,7 @@ const createTask = asyncHandler(async (req, res) => {
       activity: text,
       by: userId,
     };
-    let newLinks = null;
-
-    if (links) {
-      newLinks = links?.split(",");
-    }
+    let newLinks = links ? links.split(",").map(link => link.trim()).filter(Boolean) : [];
 
     const task = await Task.create({
       title,
@@ -131,9 +138,16 @@ const duplicateTask = asyncHandler(async (req, res) => {
 const updateTask = asyncHandler(async (req, res) => {
   try {
     const { userId } = req.user;
-    const taskId = req.params.id;
-    const updates = { ...req.body };
+    if (!userId) {
+      return res.status(401).json({ status: false, message: "User not authenticated" });
+    }
 
+    const taskId = req.params.id;
+    if (!taskId) {
+      return res.status(400).json({ status: false, message: "Task ID is required" });
+    }
+
+    const updates = { ...req.body };
     const task = await Task.findById(taskId);
 
     if (!task) {
@@ -185,17 +199,43 @@ const updateTaskStage = asyncHandler(async (req, res) => {
     const { id } = req.params;
     const { stage } = req.body;
 
+    if (!id || !stage) {
+      return res.status(400).json({
+        status: false,
+        message: "Task ID and stage are required"
+      });
+    }
+
     const task = await Task.findById(id);
+    if (!task) {
+      return res.status(404).json({
+        status: false,
+        message: "Task not found"
+      });
+    }
+
+    // Validate stage value
+    const validStages = ["todo", "in progress", "completed"];
+    if (!validStages.includes(stage.toLowerCase())) {
+      return res.status(400).json({
+        status: false,
+        message: "Invalid stage value"
+      });
+    }
 
     task.stage = stage.toLowerCase();
-
     await task.save();
 
-    res
-      .status(200)
-      .json({ status: true, message: "Task stage changed successfully." });
+    return res.status(200).json({
+      status: true,
+      message: "Task stage changed successfully."
+    });
   } catch (error) {
-    return res.status(400).json({ status: false, message: error.message });
+    console.error("Error updating task stage:", error);
+    return res.status(500).json({
+      status: false,
+      message: "Error updating task stage: " + error.message
+    });
   }
 });
 
@@ -204,7 +244,14 @@ const updateSubTaskStage = asyncHandler(async (req, res) => {
     const { taskId, subTaskId } = req.params;
     const { status } = req.body;
 
-    await Task.findOneAndUpdate(
+    if (!taskId || !subTaskId) {
+      return res.status(400).json({
+        status: false,
+        message: "Task ID and subtask ID are required"
+      });
+    }
+
+    const updatedTask = await Task.findOneAndUpdate(
       {
         _id: taskId,
         "subTasks._id": subTaskId,
@@ -213,10 +260,18 @@ const updateSubTaskStage = asyncHandler(async (req, res) => {
         $set: {
           "subTasks.$.isCompleted": status,
         },
-      }
+      },
+      { new: true }
     );
 
-    res.status(200).json({
+    if (!updatedTask) {
+      return res.status(404).json({
+        status: false,
+        message: "Task or subtask not found"
+      });
+    }
+
+    return res.status(200).json({
       status: true,
       message: status
         ? "Task has been marked completed"
@@ -224,7 +279,10 @@ const updateSubTaskStage = asyncHandler(async (req, res) => {
     });
   } catch (error) {
     console.log(error);
-    return res.status(400).json({ status: false, message: error.message });
+    return res.status(500).json({
+      status: false,
+      message: "Error updating subtask: " + error.message
+    });
   }
 });
 
@@ -307,13 +365,17 @@ const getTask = asyncHandler(async (req, res) => {
       })
       .sort({ _id: -1 });
 
-    res.status(200).json({
+    if (!task) {
+      return res.status(404).json({ status: false, message: "Task not found" });
+    }
+
+    return res.status(200).json({
       status: true,
       task,
     });
   } catch (error) {
     console.log(error);
-    throw new Error("Failed to fetch task", error);
+    return res.status(500).json({ status: false, message: "Failed to fetch task: " + error.message });
   }
 });
 
@@ -396,6 +458,10 @@ const dashboardStatistics = asyncHandler(async (req, res) => {
   try {
     const { userId, isAdmin } = req.user;
 
+    if (!userId) {
+      return res.status(401).json({ status: false, message: "User not authenticated" });
+    }
+
     // Fetch all tasks from the database
     const allTasks = isAdmin
       ? await Task.find({
@@ -416,48 +482,46 @@ const dashboardStatistics = asyncHandler(async (req, res) => {
           })
           .sort({ _id: -1 });
 
-    const users = await User.find({ isActive: true })
-      .select("name title role isActive createdAt")
-      .limit(10)
-      .sort({ _id: -1 });
+    const users = isAdmin 
+      ? await User.find({ isActive: true })
+          .select("name title role isActive createdAt")
+          .limit(10)
+          .sort({ _id: -1 })
+      : [];
 
     // Group tasks by stage and calculate counts
-    const groupedTasks = allTasks?.reduce((result, task) => {
+    const groupedTasks = allTasks.reduce((result, task) => {
       const stage = task.stage;
-
-      if (!result[stage]) {
-        result[stage] = 1;
-      } else {
-        result[stage] += 1;
-      }
-
+      result[stage] = (result[stage] || 0) + 1;
       return result;
     }, {});
 
     const graphData = Object.entries(
-      allTasks?.reduce((result, task) => {
+      allTasks.reduce((result, task) => {
         const { priority } = task;
         result[priority] = (result[priority] || 0) + 1;
         return result;
       }, {})
     ).map(([name, total]) => ({ name, total }));
 
-    // Calculate total tasks
+    // Calculate total tasks and get last 10 tasks
     const totalTasks = allTasks.length;
-    const last10Task = allTasks?.slice(0, 10);
+    const last10Task = allTasks.slice(0, 10);
 
     // Combine results into a summary object
     const summary = {
       totalTasks,
       last10Task,
-      users: isAdmin ? users : [],
+      users,
       tasks: groupedTasks,
       graphData,
     };
 
-    res
-      .status(200)
-      .json({ status: true, ...summary, message: "Successfully." });
+    return res.status(200).json({
+      status: true,
+      ...summary,
+      message: "Data retrieved successfully"
+    });
   } catch (error) {
     console.log(error);
     return res.status(400).json({ status: false, message: error.message });
